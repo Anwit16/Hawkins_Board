@@ -263,6 +263,20 @@ input[type="range"]{width:60px;accent-color:var(--red);}
 #dropZone{position:absolute;inset:0;z-index:50;pointer-events:none;background:rgba(224,16,16,.08);border:2px dashed var(--red);display:none;align-items:center;justify-content:center;font-size:13px;color:var(--red2);letter-spacing:.12em;text-transform:uppercase;}
 #dropZone.show{display:flex;}
 
+/* Text tool input overlay */
+#textOverlay{
+  position:absolute;z-index:35;display:none;
+  background:transparent;border:none;outline:none;
+  font-family:'DM Mono',monospace;
+  color:var(--text);
+  resize:none;overflow:hidden;min-width:80px;min-height:32px;
+  padding:2px 4px;
+  caret-color:var(--red2);
+  white-space:pre;
+  line-height:1.4;
+}
+#textOverlay.show{display:block;}
+
 /* Vignette on canvas */
 #vignette{position:absolute;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%);}
 
@@ -362,7 +376,48 @@ input[type="range"]{width:60px;accent-color:var(--red);}
 }
 .lmp-close:hover{color:var(--text);}
 
-/* ── MOBILE / RESPONSIVE ─────────────────────────── */
+/* ── LANDING SCREEN ──────────────────────────────────── */
+#sLand{
+  position:fixed;inset:0;z-index:60;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;gap:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
+#sLand.hidden{display:none;}
+.land-title{
+  font-family:'Nosifer',cursive;font-size:clamp(22px,6vw,42px);
+  color:var(--red2);text-shadow:var(--glow);letter-spacing:4px;
+  text-align:center;line-height:1.2;animation:flicker 6s infinite;
+  margin-bottom:10px;
+}
+.land-sub{
+  font-size:clamp(11px,3vw,14px);color:var(--text2);
+  letter-spacing:.12em;text-align:center;margin-bottom:40px;
+}
+.land-features{
+  display:flex;flex-direction:column;gap:10px;
+  width:100%;max-width:320px;margin-bottom:36px;
+}
+.land-feat{
+  display:flex;align-items:center;gap:12px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:11px 14px;
+}
+.land-feat-icon{font-size:18px;flex-shrink:0;}
+.land-feat-text{font-size:11px;color:var(--text2);letter-spacing:.06em;line-height:1.5;}
+.land-feat-text strong{color:var(--text);display:block;font-size:12px;margin-bottom:1px;}
+.land-cta{
+  width:100%;max-width:320px;padding:14px;
+  background:var(--red);color:#fff;
+  border:none;border-radius:10px;
+  font-family:'DM Mono',monospace;font-size:14px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:all .15s;box-shadow:var(--glow);
+}
+.land-cta:hover{opacity:.88;}
+.land-cta:active{transform:scale(.98);}
+.land-hint{font-size:10px;color:var(--text2);margin-top:14px;letter-spacing:.08em;text-align:center;}
 @media(max-width:768px){
   /* Remove dvh — use --appH set by JS instead */
   #app{height:var(--appH,100vh);}
@@ -404,6 +459,32 @@ input[type="range"]{width:60px;accent-color:var(--red);}
 </style>
 </head>
 <body>
+
+<!-- ── LANDING ──────────────────────────── -->
+<div id="sLand">
+  <div class="land-title">Anwit's Notepad</div>
+  <div class="land-sub">a private shared canvas for two</div>
+  <div class="land-features">
+    <div class="land-feat">
+      <div class="land-feat-icon">🎨</div>
+      <div class="land-feat-text"><strong>Draw together, live</strong>Every stroke appears on both screens in real time</div>
+    </div>
+    <div class="land-feat">
+      <div class="land-feat-icon">🔒</div>
+      <div class="land-feat-text"><strong>Completely private</strong>PIN protected — only the people you invite can enter</div>
+    </div>
+    <div class="land-feat">
+      <div class="land-feat-icon">📄</div>
+      <div class="land-feat-text"><strong>Multiple pages</strong>Organise your canvas across unlimited pages</div>
+    </div>
+    <div class="land-feat">
+      <div class="land-feat-icon">💡</div>
+      <div class="land-feat-text"><strong>Message in lights</strong>Spell words with the Christmas lights bar</div>
+    </div>
+  </div>
+  <button class="land-cta" onclick="enterLand()">Enter the Notepad →</button>
+  <div class="land-hint">invite only · real-time · stranger things vibes</div>
+</div>
 
 <!-- ── PIN ───────────────────────────── -->
 <div class="screen" id="sPin">
@@ -484,6 +565,7 @@ input[type="range"]{width:60px;accent-color:var(--red);}
     <button class="btn on" id="bPen"    onclick="setTool('pen')">✒ Pen</button>
     <button class="btn"    id="bMark"   onclick="setTool('marker')">▌ Marker</button>
     <button class="btn"    id="bErase"  onclick="setTool('eraser')">◻ Erase</button>
+    <button class="btn"    id="bText"   onclick="setTool('text')">T Text</button>
     <div class="sep"></div>
     <input type="color" id="colorPick" value="#e8dcc8" title="Color"/>
     <input type="range" min="1" max="24" value="3" id="sizeRange"/>
@@ -495,6 +577,8 @@ input[type="range"]{width:60px;accent-color:var(--red);}
     <button class="btn danger" id="bClear" onclick="clearAll()" style="display:none" title="Clear canvas">⌫ Clear all</button>
     <!-- Export -->
     <button class="btn green" onclick="exportPNG()" title="Export as PNG">↓ PNG</button>
+    <button class="btn green" onclick="exportPDF()" title="Export as PDF">↓ PDF</button>
+    <button class="btn" onclick="shareRoom()" title="Copy invite link">🔗 Share</button>
     <div class="sep"></div>
     <!-- Admin: read-only, kick -->
     <button class="btn admin" id="bRO" onclick="toggleReadOnly()" style="display:none" title="Toggle read-only">🔒 Lock</button>
@@ -515,6 +599,7 @@ input[type="range"]{width:60px;accent-color:var(--red);}
     <div id="morseFlash"></div>
     <div id="rCursor"></div>
     <div id="rLabel"></div>
+    <textarea id="textOverlay" rows="1" spellcheck="false"></textarea>
   </div>
 </div>
 
@@ -632,16 +717,25 @@ window.addEventListener('load',buildLights);
 window.addEventListener('resize',buildLights);
 
 // ══════════════════════════════════════════════════════════
-//  AUTO-RESUME
+//  LANDING + AUTO-RESUME
 // ══════════════════════════════════════════════════════════
+function enterLand(){
+  document.getElementById('sLand').classList.add('hidden');
+  document.getElementById('sPin').classList.remove('hidden');
+  initPIN();
+}
+
 if(saved?.pin===PIN && saved?.name){
+  // Returning user — skip landing AND pin
+  document.getElementById('sLand').classList.add('hidden');
   document.getElementById('sPin').classList.add('hidden');
   document.getElementById('sId').classList.add('hidden');
   document.getElementById('nameIn').value=myName;
   if(myAvatar) document.getElementById('avPrev').innerHTML=`<img src="${myAvatar}"/>`;
   setTimeout(bootFB,0);
 } else {
-  initPIN();
+  // New user — show landing, hide PIN until they click Enter
+  document.getElementById('sPin').classList.add('hidden');
 }
 
 function initPIN(){
@@ -872,6 +966,7 @@ function setupCanvas(){
   cvsCur.style.pointerEvents='none';
 
   cvsBg.addEventListener('mousedown', e=>{
+    if(tool==='text'){startTextInput(e.offsetX,e.offsetY);return;}
     if(isMorse){sendMorsePulse(e.offsetX,e.offsetY);return;}
     if(!isReadOnly||isAdmin) startStroke(e.offsetX,e.offsetY);
   });
@@ -882,6 +977,7 @@ function setupCanvas(){
   cvsBg.addEventListener('mouseleave',endStroke);
   cvsBg.addEventListener('touchstart',e=>{
     e.preventDefault();const t=tp(e);
+    if(tool==='text'){startTextInput(t.x,t.y);return;}
     if(isMorse){sendMorsePulse(t.x,t.y);return;}
     if(!isReadOnly||isAdmin) startStroke(t.x,t.y);
   },{passive:false});
@@ -950,6 +1046,20 @@ function drawStroke(ctx,s){
       ctx.restore();
     };
     img.src=s.data;
+    return;
+  }
+  if(s.type==='text'){
+    if(!s.text||!s.text.trim()) return;
+    ctx.save();
+    ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=1;
+    ctx.fillStyle=s.color||'#e8dcc8';
+    ctx.font=`${s.fontSize||16}px DM Mono, monospace`;
+    // Support multi-line
+    const lines=s.text.split('\n');
+    const lh=(s.fontSize||16)*1.4;
+    lines.forEach((ln,i)=>ctx.fillText(ln,s.x,s.y+i*lh));
+    ctx.restore();
     return;
   }
   if(!s.pts||s.pts.length<2) return;
@@ -1289,7 +1399,6 @@ function uploadImage(file,x,y){
 //  EXPORT
 // ══════════════════════════════════════════════════════════
 function exportPNG(){
-  // Composite bg + cur onto export canvas
   const ec=document.createElement('canvas');
   ec.width=cvsBg.width; ec.height=cvsBg.height;
   const ectx=ec.getContext('2d');
@@ -1301,20 +1410,107 @@ function exportPNG(){
   a.download=`notepad-${currentPage}-${Date.now()}.png`;
   a.href=ec.toDataURL('image/png');
   a.click();
-  showToast('Exported ↓');
+  showToast('Exported as PNG ↓');
+}
+
+function exportPDF(){
+  const ec=document.createElement('canvas');
+  ec.width=cvsBg.width; ec.height=cvsBg.height;
+  const ectx=ec.getContext('2d');
+  ectx.fillStyle='#040407';
+  ectx.fillRect(0,0,ec.width,ec.height);
+  ectx.drawImage(cvsBg,0,0);
+  const dataUrl=ec.toDataURL('image/jpeg',0.92);
+  const win=window.open('','_blank');
+  if(!win){showToast('Allow popups to export PDF');return;}
+  win.document.write(`<!DOCTYPE html><html><head><title>Anwit's Notepad — Export</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#040407;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+  img{max-width:100%;max-height:100vh;object-fit:contain;display:block;}
+  </style></head><body><img src="${dataUrl}" onload="window.print();"/></body></html>`);
+  win.document.close();
+  showToast('Opening PDF export...');
+}
+
+function shareRoom(){
+  const url=window.location.href;
+  const msg=`Join my private notepad!\nURL: ${url}\nPIN: ${PIN}`;
+  if(navigator.share){
+    navigator.share({title:"Anwit's Notepad",text:msg,url})
+      .catch(()=>{});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(msg)
+      .then(()=>showToast('Invite link + PIN copied!'))
+      .catch(()=>showToast('URL: '+url));
+  } else {
+    prompt('Copy this invite:',msg);
+  }
 }
 
 // ══════════════════════════════════════════════════════════
 //  TOOL SELECTOR
 // ══════════════════════════════════════════════════════════
 function setTool(t){
+  // Commit any open text before switching tools
+  if(tool==='text' && t!=='text') commitText();
   tool=t;
-  ['pen','marker','eraser'].forEach(n=>{
+  ['pen','marker','eraser','text'].forEach(n=>{
     const b=document.getElementById('b'+n.charAt(0).toUpperCase()+n.slice(1));
     if(b) b.classList.toggle('on',n===t);
   });
-  document.getElementById('canvasWrap').style.cursor=t==='eraser'?'cell':'crosshair';
+  document.getElementById('canvasWrap').style.cursor=
+    t==='eraser'?'cell':t==='text'?'text':'crosshair';
 }
+
+// ══════════════════════════════════════════════════════════
+//  TEXT TOOL
+// ══════════════════════════════════════════════════════════
+let textX=0,textY=0,textFontSize=16;
+function startTextInput(x,y){
+  if(!isReadOnly||isAdmin){
+    commitText(); // commit any existing
+    textX=x; textY=y;
+    textFontSize=Math.max(12,brushSize*3);
+    const ta=document.getElementById('textOverlay');
+    ta.value='';
+    ta.style.left=x+'px';
+    ta.style.top=(y-textFontSize)+'px';
+    ta.style.fontSize=textFontSize+'px';
+    ta.style.color=brushColor;
+    ta.style.width='200px';
+    ta.classList.add('show');
+    ta.focus();
+  }
+}
+function commitText(){
+  const ta=document.getElementById('textOverlay');
+  const txt=ta.value;
+  ta.classList.remove('show');
+  ta.value='';
+  if(!txt||!txt.trim()) return;
+  const s={uid:myId,type:'text',text:txt,x:Math.round(textX),
+    y:Math.round(textY),color:brushColor,fontSize:textFontSize,ts:Date.now()};
+  drawStroke(ctxBg,s);
+  setSyncStatus('sync');
+  getStrokesRef().push(s).then(ref=>{
+    drawnLocally.add(ref.key);
+    allStrokes[ref.key]=s;
+    myStrokeKeys.push(ref.key);
+    setSyncStatus('live');
+  }).catch(()=>setSyncStatus('err'));
+}
+// Commit on Enter (Shift+Enter = newline), Escape = cancel
+document.addEventListener('DOMContentLoaded',()=>{
+  const ta=document.getElementById('textOverlay');
+  if(!ta) return;
+  ta.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ta.classList.remove('show');ta.value='';e.stopPropagation();}
+    // Auto-resize height
+    ta.style.height='auto';
+    ta.style.height=ta.scrollHeight+'px';
+  });
+  ta.addEventListener('blur',()=>{ if(ta.classList.contains('show')) commitText(); });
+});
 
 // ══════════════════════════════════════════════════════════
 //  SIGN OUT
