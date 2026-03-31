@@ -543,6 +543,8 @@ const guestQueue=[]; // queue of waiting guest IDs
 
 // Morse
 let morseTimer=null;
+// Cursor throttle
+let cursorThrottle=null;
 
 // ══════════════════════════════════════════════════════════
 //  SCREEN HELPERS
@@ -644,7 +646,13 @@ function handleCreate(){
   // Init Firebase only once
   if(!firebase.apps.length){firebase.initializeApp(FB);}
   if(!db) db=firebase.database();
-  db.ref('rooms/'+code+'/meta').set({name,pin,createdAt:Date.now()});
+  // Write room meta AND first page together
+  db.ref('rooms/'+code).update({
+    'meta/name': name,
+    'meta/pin': pin,
+    'meta/createdAt': Date.now(),
+    'pagesMeta/p1/name': 'Page 1'
+  });
 
   // Show step 2
   document.getElementById('displayCode').textContent=code;
@@ -983,7 +991,13 @@ function continueStroke(x,y){
   currentStroke.push([x,y]);
   ctxCur.lineTo(x,y);ctxCur.stroke();
   ctxCur.beginPath();ctxCur.moveTo(x,y);
-  myUserRef.update({cx:Math.round(x),cy:Math.round(y),ts:Date.now()});
+  // Throttle cursor position updates — max once per 150ms
+  if(!cursorThrottle){
+    cursorThrottle=setTimeout(()=>{
+      myUserRef.update({cx:Math.round(x),cy:Math.round(y),ts:Date.now()});
+      cursorThrottle=null;
+    },150);
+  }
 }
 function endStroke(){
   if(!isDrawing) return;
@@ -994,10 +1008,13 @@ function endStroke(){
   drawStroke(ctxBg,s);
   ctxCur.clearRect(0,0,cvsCur.width,cvsCur.height);
   setSyncStatus('sync');
+  // Fallback: if push doesn't resolve in 5s, mark live anyway
+  const syncFallback=setTimeout(()=>setSyncStatus('live'),5000);
   getStrokesRef().push(s).then(ref=>{
+    clearTimeout(syncFallback);
     drawnLocally.add(ref.key);allStrokes[ref.key]=s;myStrokeKeys.push(ref.key);
     setSyncStatus('live');
-  }).catch(()=>setSyncStatus('err'));
+  }).catch(()=>{clearTimeout(syncFallback);setSyncStatus('err');});
   currentStroke=[];
 }
 
@@ -1011,10 +1028,17 @@ function listenPages(){
   pagesMetaRef.on('value',snap=>{
     const d=snap.val()||{};
     pages=d;
-    if(!d.p1) pagesMetaRef.child('p1').set({name:'Page 1'});
+    // Ensure at least one page exists
+    if(!d.p1){
+      pagesMetaRef.child('p1').set({name:'Page 1'});
+      return; // wait for the set to trigger on('value') again
+    }
     renderPageTabs();
+    // Load current page if not yet loaded, or if it no longer exists
+    if(!allStrokes || !pages[currentPage]){
+      loadPage('p1');
+    }
   });
-  loadPage('p1');
 }
 function renderPageTabs(){
   const area=document.getElementById('pageTabs');
@@ -1037,10 +1061,13 @@ function loadPage(pageId){
   currentPage=pageId;
   allStrokes={};myStrokeKeys=[];drawnLocally=new Set();
   if(ctxBg){ctxBg.clearRect(0,0,cvsBg.width,cvsBg.height);ctxCur.clearRect(0,0,cvsCur.width,cvsCur.height);}
-  renderPageTabs();
+  renderPageTabs(); // update active tab highlight
   setSyncStatus('sync');
   const sRef=getStrokesRef();
+  // Fallback in case Firebase read takes too long
+  const loadFallback=setTimeout(()=>setSyncStatus('live'),6000);
   sRef.once('value',snap=>{
+    clearTimeout(loadFallback);
     const d=snap.val()||{};
     Object.entries(d).forEach(([k,s])=>{
       allStrokes[k]=s;drawStroke(ctxBg,s);
@@ -1112,14 +1139,19 @@ function clearAll(){
 //  HEARTBEAT & USERS
 // ══════════════════════════════════════════════════════════
 function setupHeartbeat(){
-  function beat(){myUserRef.update({name:myName,avatar:myAvatar,color:myColor,ts:Date.now(),isAdmin});}
+  function beat(){
+    myUserRef.set({name:myName,avatar:myAvatar,color:myColor,ts:Date.now(),isAdmin});
+  }
+  // Beat immediately so user chip appears right away
   beat();
-  setInterval(beat,15000); // 15s — reliable enough without hammering Firebase
+  setInterval(beat,15000);
   myUserRef.onDisconnect().remove();
+
   usersRef.on('value',snap=>{
     const d=snap.val()||{};
     const online=Object.values(d).filter(u=>Date.now()-(u.ts||0)<30000).length;
-    renderUsers(d);updateRemoteCursor(d);
+    renderUsers(d);
+    updateRemoteCursor(d);
     if(online>=2&&prevOnlineCount<2) triggerGateOpen();
     prevOnlineCount=online;
   });
