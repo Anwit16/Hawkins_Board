@@ -1,6 +1,6 @@
-# Hawkins Board ✦
+# Hawkins Board
 
-A private, real-time shared canvas for two people — with a Stranger Things aesthetic.
+A private, real-time shared canvas for two people - with a Stranger Things aesthetic.
 
 Create a room, share the code, draw and write together. No accounts. No tracking. Just a private shared space.
 
@@ -10,9 +10,9 @@ Create a room, share the code, draw and write together. No accounts. No tracking
 
 ## What it looks like
 
-- Dark Upside Down aesthetic — deep blacks, red glow, Nosifer font
+- Dark Upside Down aesthetic
 - 26 Christmas lights across the top (A–Z) that can spell out words letter by letter
-- Real-time stroke sync — your partner sees your drawing as you draw it
+- Real-time stroke sync - your partner sees your drawing as you draw it
 - Waiting room with admin admit/deny — nobody gets in without your permission
 - "The Gate is Open" cinematic sequence when a second user joins
 
@@ -24,14 +24,14 @@ Create a room, share the code, draw and write together. No accounts. No tracking
 |---|---|
 | **Private rooms** | 6-character room code + 4-digit PIN. Each room is completely isolated. |
 | **Real-time canvas** | Strokes sync to all users in under a second via Firebase. |
-| **Multiple pages** | Add, rename, delete pages. All synced. |
+| **Multiple pages** | Add and delete pages. All synced. |
 | **Per-user undo** | Undo removes only your own last stroke. |
 | **Admin controls** | Kick users, lock canvas to read-only, clear all. |
 | **Message in lights** | Type a word — the lights bar spells it out letter by letter. |
 | **Morse code mode** | Tap the canvas to send pulse ripples to your partner. |
 | **Export PNG** | Download the current canvas as a dark-background PNG. |
 | **Auto-resume** | Reload the page — your room and canvas state are restored. |
-| **Mobile responsive** | Works on iPhone, Android, desktop. Draw with finger or mouse. |
+| **Mobile responsive** | Works on iPhone, Android and desktop. Draw with finger or mouse. |
 
 ---
 
@@ -42,7 +42,6 @@ Create a room, share the code, draw and write together. No accounts. No tracking
 | Frontend | Vanilla HTML, CSS, JavaScript — single file, zero build step |
 | Real-time sync | Firebase Realtime Database |
 | Hosting | GitHub Pages (free, no bandwidth limits) |
-| Fonts | Google Fonts — Nosifer, DM Mono |
 
 No frameworks. No npm. No bundler. One HTML file.
 
