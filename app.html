@@ -4,17 +4,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <title>Hawkins Board</title>
-
-<!-- PWA -->
-<link rel="manifest" href="manifest.json"/>
-<meta name="theme-color" content="#050508"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Notepad"/>
-<link rel="apple-touch-icon" href="icon-192.png"/>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
-
 <link href="https://fonts.googleapis.com/css2?family=Nosifer&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script>
 function fixHeight(){document.documentElement.style.setProperty('--appH',window.innerHeight+'px');}
@@ -517,17 +506,24 @@ const FB={
 const COLORS=['#e01010','#2980b9','#0b9e52','#8e44ad','#d07010','#16a085','#e67e22','#c0392b'];
 const LS_PREFIX='hb_room_';
 const LS_LAST='hb_last_room';
+const LS_UID='hb_uid';
 
 // ══════════════════════════════════════════════════════════
 //  ROOM + USER STATE
 // ══════════════════════════════════════════════════════════
-let currentRoomId=null;   // 6-char code
+let currentRoomId=null;
 let currentRoomName='';
 let currentRoomPin='';
-let isCreator=false;      // did this user create this room?
+let isCreator=false;
 
-// User identity
-const myId='u'+Math.random().toString(36).substr(2,7);
+// Persist user ID across reloads — prevents ghost entries accumulating in Firebase
+const myId=(()=>{
+  try{
+    let id=localStorage.getItem(LS_UID);
+    if(!id){id='u'+Math.random().toString(36).substr(2,7);localStorage.setItem(LS_UID,id);}
+    return id;
+  }catch(e){return 'u'+Math.random().toString(36).substr(2,7);}
+})();
 const myColor=COLORS[Math.floor(Math.random()*COLORS.length)];
 let myName='', myAvatar='';
 let isAdmin=false, isReadOnly=false, isMorse=false;
@@ -543,6 +539,7 @@ let allStrokes={}, myStrokeKeys=[], drawnLocally=new Set();
 let isDrawing=false, currentStroke=[], tool='pen', brushColor='#e8dcc8', brushSize=3;
 let pages={}, currentPage='p1', strokesListener=null;
 let pendingGuestId=null;
+const guestQueue=[]; // queue of waiting guest IDs
 
 // Morse
 let morseTimer=null;
@@ -644,9 +641,9 @@ function handleCreate(){
   currentRoomPin=pin;
   isCreator=true;
 
-  // Write room to Firebase
-  firebase.initializeApp(FB);
-  db=firebase.database();
+  // Init Firebase only once
+  if(!firebase.apps.length){firebase.initializeApp(FB);}
+  if(!db) db=firebase.database();
   db.ref('rooms/'+code+'/meta').set({name,pin,createdAt:Date.now()});
 
   // Show step 2
@@ -690,7 +687,8 @@ function handleJoin(){
   errEl.textContent='Checking...';
 
   // Init Firebase if not already
-  if(!db){firebase.initializeApp(FB);db=firebase.database();}
+  if(!firebase.apps.length){firebase.initializeApp(FB);}
+  if(!db) db=firebase.database();
 
   db.ref('rooms/'+code+'/meta').once('value',snap=>{
     const meta=snap.val();
@@ -746,15 +744,22 @@ function submitId(){
   bootFB();
 }
 function goBackFromId(){
-  if(isCreator) showScreen('sCreate');
-  else showScreen('sJoin');
+  if(isCreator){
+    // Reset create form back to step 1
+    document.getElementById('createStep1').style.display='flex';
+    document.getElementById('createStep2').style.display='none';
+    showScreen('sCreate');
+  } else {
+    showScreen('sJoin');
+  }
 }
 
 // ══════════════════════════════════════════════════════════
 //  FIREBASE BOOT
 // ══════════════════════════════════════════════════════════
 function bootFB(){
-  if(!db){firebase.initializeApp(FB);db=firebase.database();}
+  if(!firebase.apps.length){firebase.initializeApp(FB);}
+  if(!db) db=firebase.database();
   roomRef    =db.ref('rooms/'+currentRoomId);
   sessionRef =roomRef.child('session');
   waitRef    =roomRef.child('waiting');
@@ -817,7 +822,25 @@ function showDenied(){
 function listenKnocks(){
   waitRef.on('child_added',snap=>{
     const g=snap.val(); if(!g) return;
-    pendingGuestId=snap.key;
+    guestQueue.push(snap.key);
+    if(!pendingGuestId) showNextGuest();
+  });
+  waitRef.on('child_removed',snap=>{
+    // If a guest leaves the waiting room on their own, skip them
+    const idx=guestQueue.indexOf(snap.key);
+    if(idx>-1) guestQueue.splice(idx,1);
+    if(snap.key===pendingGuestId){
+      pendingGuestId=null;
+      document.getElementById('admitOverlay').classList.remove('show');
+      if(guestQueue.length) showNextGuest();
+    }
+  });
+}
+function showNextGuest(){
+  if(!guestQueue.length) return;
+  pendingGuestId=guestQueue[0];
+  waitRef.child(pendingGuestId).once('value',snap=>{
+    const g=snap.val(); if(!g){guestQueue.shift();pendingGuestId=null;showNextGuest();return;}
     const av=document.getElementById('admitAv');
     if(g.avatar){av.innerHTML=`<img src="${g.avatar}"/>`;}
     else{av.textContent=(g.name||'?').charAt(0).toUpperCase();av.style.background=g.color||'#888';}
@@ -828,10 +851,14 @@ function listenKnocks(){
 function admitDecision(admit){
   document.getElementById('admitOverlay').classList.remove('show');
   if(!pendingGuestId) return;
-  admittedRef.child(pendingGuestId).set(admit?'admitted':'denied');
-  waitRef.child(pendingGuestId).remove();
-  showToast(admit?'User admitted ✓':'User denied');
+  const gid=pendingGuestId;
+  guestQueue.shift();
   pendingGuestId=null;
+  admittedRef.child(gid).set(admit?'admitted':'denied');
+  waitRef.child(gid).remove();
+  showToast(admit?'User admitted ✓':'User denied');
+  // Show next in queue if any
+  if(guestQueue.length) setTimeout(showNextGuest,400);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -991,7 +1018,11 @@ function listenPages(){
 }
 function renderPageTabs(){
   const area=document.getElementById('pageTabs');
-  const list=Object.entries(pages);
+  // Sort: p1 always first, then by timestamp ascending
+  const list=Object.entries(pages).sort(([a],[b])=>{
+    if(a==='p1') return -1; if(b==='p1') return 1;
+    return parseInt(a.slice(1))-parseInt(b.slice(1));
+  });
   area.innerHTML=list.map(([id,p])=>{
     const isActive=id===currentPage;
     const del=isAdmin&&list.length>1?`<span class="pDel" onclick="deletePage(event,'${id}')">✕</span>`:'';
@@ -1081,12 +1112,13 @@ function clearAll(){
 //  HEARTBEAT & USERS
 // ══════════════════════════════════════════════════════════
 function setupHeartbeat(){
-  function beat(){myUserRef.set({name:myName,avatar:myAvatar,color:myColor,ts:Date.now(),isAdmin});}
-  beat();setInterval(beat,30000);
+  function beat(){myUserRef.update({name:myName,avatar:myAvatar,color:myColor,ts:Date.now(),isAdmin});}
+  beat();
+  setInterval(beat,15000); // 15s — reliable enough without hammering Firebase
   myUserRef.onDisconnect().remove();
   usersRef.on('value',snap=>{
     const d=snap.val()||{};
-    const online=Object.values(d).filter(u=>Date.now()-(u.ts||0)<45000).length;
+    const online=Object.values(d).filter(u=>Date.now()-(u.ts||0)<30000).length;
     renderUsers(d);updateRemoteCursor(d);
     if(online>=2&&prevOnlineCount<2) triggerGateOpen();
     prevOnlineCount=online;
@@ -1094,7 +1126,7 @@ function setupHeartbeat(){
 }
 function renderUsers(data){
   const area=document.getElementById('usersArea');
-  const online=Object.entries(data).filter(([,u])=>Date.now()-(u.ts||0)<45000);
+  const online=Object.entries(data).filter(([,u])=>Date.now()-(u.ts||0)<30000);
   area.innerHTML=online.map(([id,u])=>{
     const isMe=id===myId;
     const label=(u.name||'User')+(u.isAdmin?' ★':'');
@@ -1113,7 +1145,7 @@ function updateRemoteCursor(data){
   const rc=document.getElementById('rCursor'),rl=document.getElementById('rLabel');
   if(others.length>0){
     const[,u]=others[0];
-    if(u&&u.cx&&(Date.now()-(u.ts||0)<3000)){
+    if(u&&u.cx&&(Date.now()-(u.ts||0)<30000)){
       rc.style.cssText=`display:block;left:${u.cx}px;top:${u.cy}px;background:${u.color};`;
       rl.style.cssText=`display:block;left:${u.cx}px;top:${u.cy}px;`;
       rl.textContent=u.name||'';
@@ -1335,7 +1367,7 @@ function signOut(){
 // ══════════════════════════════════════════════════════════
 function showBlockedAndReset(title,sub){
   clearSession();
-  document.getElementById('kickedMsg').innerHTML=title.replace(' ','<br/>');
+  document.getElementById('kickedMsg').textContent=title;
   document.getElementById('kickedSub').textContent=sub;
   document.getElementById('sKicked').classList.add('show');
   let n=3;
@@ -1364,16 +1396,6 @@ function showToast(msg){
   t.textContent=msg;t.classList.add('show');
   clearTimeout(toastT);
   toastT=setTimeout(()=>t.classList.remove('show'),2600);
-}
-</script>
-<script>
-// Register service worker for PWA
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
-      .then(() => console.log('SW registered'))
-      .catch(() => {});
-  });
 }
 </script>
 </body>
