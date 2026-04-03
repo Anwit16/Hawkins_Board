@@ -984,14 +984,17 @@ function enterCanvas(){
     if(el) el.classList.add('hidden');
   });
   document.getElementById('app').classList.add('on');
-  // Hide atmosphere — not needed inside canvas
+
+  // Hide atmosphere
   ['homeBg','homeVignette','homeFlicker'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
+
   fixHeight();
-  // Rebuild lights now that #app is visible and has real dimensions
-  buildLights();
+
+  // Show syncing immediately so it never stays on "connecting"
+  setSyncStatus('sync');
 
   // Room label
   document.getElementById('roomLabel').textContent=currentRoomName||currentRoomId;
@@ -1014,6 +1017,9 @@ function enterCanvas(){
     brushSize=parseInt(e.target.value);
     document.getElementById('szLbl').textContent=brushSize+'px';
   });
+
+  // Defer buildLights — needs browser layout to settle so offsetWidth is correct
+  requestAnimationFrame(()=>requestAnimationFrame(buildLights));
 
   showToast(isAdmin?`Admin — ${currentRoomName}`:`Welcome, ${myName}!`);
 }
@@ -1450,6 +1456,7 @@ function triggerGateOpen(){
 // ══════════════════════════════════════════════════════════
 function buildLights(){
   const bar=document.getElementById('lightsBar');
+  if(!bar) return; // guard against null
   bar.querySelectorAll('.lBulb').forEach(b=>b.remove());
   const lc=[
     {c:'#e01010',s:'0 0 5px #e01010,0 0 10px #e0101066'},
@@ -1462,6 +1469,11 @@ function buildLights(){
   ];
   const COUNT=26;
   const barW=bar.offsetWidth||window.innerWidth;
+  if(barW===0){
+    // Layout not ready — retry after next frame
+    requestAnimationFrame(buildLights);
+    return;
+  }
   const spacing=barW/COUNT;
   for(let i=0;i<COUNT;i++){
     const b=document.createElement('div');
