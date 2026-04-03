@@ -657,7 +657,18 @@ function showScreen(id){
     if(s&&s.name){
       roomId=last; roomName=s.roomName||''; roomPin=s.pin||'';
       isCreator=!!s.isCreator; myName=s.name; myAvatar=s.avatar||'';
-      initDB(); setRoomRefs(); enterCanvas();
+      // CRITICAL: restore admin status for creator
+      if(isCreator){
+        isAdmin=true;
+        initDB(); setRoomRefs();
+        sessionRef.child('adminId').set(myId);
+        sessionRef.child('adminId').onDisconnect().remove();
+        enterCanvas();
+        listenKnocks();
+      } else {
+        initDB(); setRoomRefs();
+        enterCanvas();
+      }
       return;
     }
   }
@@ -902,8 +913,8 @@ function enterCanvas(){
     brushSize=parseInt(e.target.value);
     document.getElementById('szLbl').textContent=brushSize+'px';
   });
-  // 8. Build lights AFTER layout settles (two frames + 50ms safety)
-  requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(buildLights,50)));
+  // Build lights after layout fully settles
+  setTimeout(buildLights,300);
   toast(isAdmin?`Admin — ${roomName}`:`Welcome, ${myName}!`);
 }
 
@@ -1045,8 +1056,10 @@ function loadPage(pid){
   if(ctxBg){ctxBg.clearRect(0,0,cvsBg.width,cvsBg.height);ctxCur.clearRect(0,0,cvsCur.width,cvsCur.height);}
   renderTabs();
   setSyncStatus('sync');
-  // Load all existing strokes once
+  // Load all existing strokes once — with error handling
+  const fallback=setTimeout(()=>setSyncStatus('live'),8000);
   getPageRef().once('value',snap=>{
+    clearTimeout(fallback);
     const d=snap.val()||{};
     Object.entries(d).forEach(([k,s])=>{
       strokes[k]=s;drawS(ctxBg,s);
@@ -1057,11 +1070,15 @@ function loadPage(pid){
     sListener=true;
     getPageRef().on('child_added',cs=>{
       const s=cs.val();
-      if(strokes[cs.key]) return;        // already loaded
-      if(localKeys.has(cs.key)){strokes[cs.key]=s;return;} // we drew it
+      if(strokes[cs.key]) return;
+      if(localKeys.has(cs.key)){strokes[cs.key]=s;return;}
       strokes[cs.key]=s;drawS(ctxBg,s);
       if(s.uid===myId) myKeys.push(cs.key);
     });
+  },err=>{
+    clearTimeout(fallback);
+    console.error('loadPage error:',err);
+    setSyncStatus('err');
   });
   // Listen for clear events
   getClearRef().on('value',snap=>{
