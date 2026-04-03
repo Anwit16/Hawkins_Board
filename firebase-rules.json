@@ -1,11 +1,9 @@
 {
   "rules": {
     "rooms": {
-      // Hard limit: max 500 rooms total in the database
       ".read": false,
       ".write": false,
       "$roomId": {
-        // Room ID must be exactly 6 uppercase alphanumeric chars
         "meta": {
           ".read": true,
           ".write": "!data.exists() && $roomId.matches(/^[A-Z0-9]{6}$/)",
@@ -15,8 +13,7 @@
                         newData.child('name').val().length <= 64 &&
                         newData.child('pin').isString() &&
                         newData.child('pin').val().matches(/^[0-9]{4}$/) &&
-                        newData.child('createdAt').isNumber() &&
-                        newData.child('createdAt').val() >= now - 60000"
+                        newData.child('createdAt').isNumber()"
         },
         "session":   { ".read": true, ".write": true },
         "waiting": {
@@ -26,7 +23,6 @@
             ".validate": "newData.hasChildren(['name','ts']) &&
                           newData.child('name').isString() &&
                           newData.child('name').val().length >= 1 &&
-                          newData.child('name').val().length <= 64 &&
                           newData.child('ts').isNumber()"
           }
         },
@@ -58,9 +54,8 @@
               ".write": true,
               "$strokeId": {
                 ".validate": "newData.hasChildren(['uid','pts','ts']) &&
-                              newData.child('pts').isString() == false &&
-                              newData.child('ts').isNumber() &&
-                              newData.child('pts').val().length <= 5000"
+                              newData.child('uid').isString() &&
+                              newData.child('ts').isNumber()"
               }
             },
             "cleared": { ".read": true, ".write": true }

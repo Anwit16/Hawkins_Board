@@ -258,7 +258,8 @@ html,body{background:#000;}
 .admit-btns .big-btn{flex:1;font-size:12px;padding:10px;}
 
 /* ── MAIN APP ── */
-#app{display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;height:var(--appH,100vh);overflow:hidden;}
+#app{display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;height:var(--appH,100vh);overflow:hidden;z-index:0;}
+#app.on{display:flex;z-index:60;}
 #app.on{display:flex;}
 
 /* Lights bar */
