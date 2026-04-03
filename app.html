@@ -258,7 +258,7 @@ html,body{background:#000;}
 .admit-btns .big-btn{flex:1;font-size:12px;padding:10px;}
 
 /* ── MAIN APP ── */
-#app{display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;height:var(--appH,100vh);overflow:hidden;z-index:0;}
+#app{display:none;flex-direction:column;position:fixed;top:0;left:0;right:0;height:var(--appH,100vh);overflow:hidden;z-index:0;background:var(--bg);}
 #app.on{display:flex;z-index:60;}
 #app.on{display:flex;}
 
@@ -990,6 +990,8 @@ function enterCanvas(){
     if(el) el.style.display='none';
   });
   fixHeight();
+  // Rebuild lights now that #app is visible and has real dimensions
+  buildLights();
 
   // Room label
   document.getElementById('roomLabel').textContent=currentRoomName||currentRoomId;
@@ -1470,7 +1472,6 @@ function buildLights(){
     bar.appendChild(b);
   }
 }
-window.addEventListener('load',buildLights);
 window.addEventListener('resize',buildLights);
 
 // ══════════════════════════════════════════════════════════
