@@ -355,7 +355,7 @@ input[type=range]{width:60px;accent-color:var(--red);flex-shrink:0;}
     <button class="t dn" id="bClr" onclick="doClear()" style="display:none">⌫ Clear</button>
     <button class="t gn" onclick="doExp()">↓ PNG</button>
     <div class="sep"></div>
-    <button class="t" id="bMorse" onclick="toggleMorse()">⚡ Morse</button>
+    <button class="t" id="bMorse" onclick="sendMorsePulse()">⚡ Morse</button>
     <button class="t" onclick="openL()">💡 Lights</button>
     <button class="t gn" onclick="shareRoom()">⎘ Share</button>
     <button class="t" onclick="doLeave()">↩ Leave</button>
@@ -418,7 +418,7 @@ const myColor=COLORS[Math.floor(Math.random()*COLORS.length)];
 let myName='',myAvatar='';
 
 // Room state
-let roomId='',roomName='',roomPin='',isCreator=false,isAdmin=false,isMorse=false,prevOnline=0;
+let roomId='',roomName='',roomPin='',isCreator=false,isAdmin=false,prevOnline=0;
 
 // Firebase refs
 let db=null;
@@ -729,16 +729,12 @@ function setupCanvas(){
   ctxC=cvc.getContext('2d');
   resz();
   window.addEventListener('resize',resz);
-  cvb.addEventListener('mousedown',e=>{
-    if(isMorse){sendMorse(e.offsetX,e.offsetY);return;}
-    startS(e.offsetX,e.offsetY);
-  });
+  cvb.addEventListener('mousedown',e=>startS(e.offsetX,e.offsetY));
   cvb.addEventListener('mousemove',e=>contS(e.offsetX,e.offsetY));
   cvb.addEventListener('mouseup',endS);
   cvb.addEventListener('mouseleave',endS);
   cvb.addEventListener('touchstart',e=>{
     e.preventDefault();const t=tp(e);
-    if(isMorse){sendMorse(t.x,t.y);return;}
     startS(t.x,t.y);
   },{passive:false});
   cvb.addEventListener('touchmove',e=>{e.preventDefault();const t=tp(e);contS(t.x,t.y);},{passive:false});
@@ -774,7 +770,12 @@ function drawS(ctx,s){
   ctx.stroke();ctx.restore();
 }
 function rebuild(){
-  ctxB.clearRect(0,0,cvb.width,cvb.height);
+  ctxB.save();
+  ctxB.globalCompositeOperation='source-over';
+  ctxB.globalAlpha=1;
+  ctxB.fillStyle='#0a0608';
+  ctxB.fillRect(0,0,cvb.width,cvb.height);
+  ctxB.restore();
   Object.values(strokes).sort((a,b)=>a.ts-b.ts).forEach(s=>drawS(ctxB,s));
   ctxC.clearRect(0,0,cvc.width,cvc.height);
 }
@@ -856,7 +857,7 @@ function loadPage(pid){
   if(sL){strokesBase.child(curPage+'/strokes').off();sL=null;}
   getClearRef().off();
   curPage=pid;strokes={};myKeys=[];localK=new Set();
-  if(ctxB){ctxB.clearRect(0,0,cvb.width,cvb.height);ctxC.clearRect(0,0,cvc.width,cvc.height);}
+  if(ctxB){ctxB.save();ctxB.globalCompositeOperation="source-over";ctxB.globalAlpha=1;ctxB.fillStyle="#0a0608";ctxB.fillRect(0,0,cvb.width,cvb.height);ctxB.restore();ctxC.clearRect(0,0,cvc.width,cvc.height);}
   renderTabs();setSS('sync');
   const ref=getPageRef();
   const fb=setTimeout(()=>setSS('live'),8000);
@@ -888,7 +889,7 @@ function loadPage(pid){
     const v=snap.val();
     if(v&&v.by!==myId){
       strokes={};myKeys=[];
-      if(ctxB){ctxB.clearRect(0,0,cvb.width,cvb.height);ctxC.clearRect(0,0,cvc.width,cvc.height);}
+      if(ctxB){ctxB.save();ctxB.globalCompositeOperation="source-over";ctxB.globalAlpha=1;ctxB.fillStyle="#0a0608";ctxB.fillRect(0,0,cvb.width,cvb.height);ctxB.restore();ctxC.clearRect(0,0,cvc.width,cvc.height);}
       toast('Canvas cleared by admin');
     }
   });
@@ -912,8 +913,7 @@ function doUndo(){
 function doClear(){
   if(!isAdmin)return;
   strokes={};myKeys=[];localK=new Set();
-  ctxB.clearRect(0,0,cvb.width,cvb.height);
-  ctxC.clearRect(0,0,cvc.width,cvc.height);
+  rebuild();
   getPageRef().remove();
   getClearRef().set({by:myId,ts:Date.now()});
   toast('Canvas cleared');
@@ -967,27 +967,26 @@ function listenKicked(){
   });
 }
 // ── MORSE ─────────────────────────────────────────────────
-function toggleMorse(){
-  isMorse=!isMorse;
+// Press button once → sends pulse to partner at canvas centre. No mode toggle.
+let morseCooldown=false;
+function sendMorsePulse(){
+  if(morseCooldown)return;
+  morseCooldown=true;
   const btn=document.getElementById('bMorse');
-  btn.classList.toggle('on',isMorse);
-  btn.textContent=isMorse?'⚡ Morse ON':'⚡ Morse';
-  document.getElementById('cw').style.cursor=isMorse?'cell':'crosshair';
-  toast(isMorse?'Morse mode — tap to pulse':'Morse off');
-}
-function sendMorse(x,y){
-  morseRef.push({x:Math.round(x),y:Math.round(y),uid:myId,ts:Date.now()});
+  btn.classList.add('on');btn.textContent='⚡ sent!';
+  setTimeout(()=>{btn.classList.remove('on');btn.textContent='⚡ Morse';morseCooldown=false;},1200);
+  const cw=document.getElementById('cw');
+  const cx=Math.round(cw.offsetWidth/2);
+  const cy=Math.round(cw.offsetHeight/2);
+  morseRef.push({x:cx,y:cy,uid:myId,ts:Date.now()});
   showMFlash();
-  drawMorseRing(x,y,'#fff');
+  if(ctxC)drawMorseRing(cx,cy,'#fff');
 }
 function listenMorse(){
   morseRef.on('child_added',snap=>{
     const p=snap.val();if(!p)return;
     if(Date.now()-p.ts>5000)return;
-    if(p.uid!==myId){
-      showMFlash();
-      drawMorseRing(p.x,p.y,'#ffb347');
-    }
+    if(p.uid!==myId){showMFlash();if(ctxC)drawMorseRing(p.x,p.y,'#ffb347');}
     setTimeout(()=>morseRef.child(snap.key).remove(),4000);
   });
 }
@@ -996,15 +995,16 @@ function showMFlash(){
   mf.classList.remove('on');void mf.offsetWidth;mf.classList.add('on');
 }
 function drawMorseRing(x,y,color){
-  let r=4,alpha=0.9;
+  if(!ctxC)return;
+  let r=6,alpha=1;
   function step(){
     if(alpha<=0)return;
     ctxC.save();
     ctxC.beginPath();ctxC.arc(x,y,r,0,Math.PI*2);
-    ctxC.strokeStyle=color;ctxC.lineWidth=1.5;
-    ctxC.globalAlpha=alpha;ctxC.stroke();
-    ctxC.restore();
-    r+=3;alpha-=0.055;
+    ctxC.strokeStyle=color;ctxC.lineWidth=2;
+    ctxC.globalAlpha=alpha;ctxC.globalCompositeOperation='source-over';
+    ctxC.stroke();ctxC.restore();
+    r+=4;alpha-=0.055;
     requestAnimationFrame(step);
   }
   step();
